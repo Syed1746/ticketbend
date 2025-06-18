@@ -16,19 +16,58 @@ exports.createEvent = async(req, res, next) => {
 
 
 // Edit event
+// Edit event
 exports.updateEvent = async(req, res) => {
-    const { id } = req.params;
-    const data = req.body;
-    const event = await prisma.event.update({ where: { id: parseInt(id) }, data });
-    res.json(event);
+    try {
+        const { id } = req.params;
+        const data = req.body;
+
+        // Convert date to ISO 8601 format if it exists
+        if (data.date) {
+            const isoDate = new Date(data.date).toISOString();
+            if (isNaN(new Date(isoDate).getTime())) {
+                return res.status(400).json({ message: 'Invalid date format' });
+            }
+            data.date = isoDate;
+        }
+
+        // Update event
+        const event = await prisma.event.update({
+            where: { id: parseInt(id) },
+            data,
+        });
+
+        res.json(event);
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ message: 'Server error' });
+    }
 };
+
 
 // Delete event
 exports.deleteEvent = async(req, res) => {
     const { id } = req.params;
-    await prisma.event.delete({ where: { id: parseInt(id) } });
-    res.status(204).send();
+    try {
+        const eventId = parseInt(id);
+
+        // Delete bookings related to this event
+        await prisma.booking.deleteMany({
+            where: { eventId }
+        });
+
+        // Now delete the event
+        await prisma.event.delete({
+            where: { id: eventId }
+        });
+
+        res.status(204).send();
+    } catch (err) {
+        console.error('Delete Error:', err);
+        res.status(500).json({ message: 'Server error' });
+    }
 };
+
 
 // List events with search & pagination
 exports.listEvents = async(req, res) => {
